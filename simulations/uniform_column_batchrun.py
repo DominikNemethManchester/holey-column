@@ -1,12 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-[See Johnson (2017) Fig. 7]
-
 Draws UNIFORM column with same size as an N-hole flapped column.
 
 Also does the usual setting up of the materials, sections, assembly, etc.
-
-@author: ricra
 """
 
 import numpy as np
@@ -33,7 +29,6 @@ DENSITY = 1160
 THEORETICAL_C = np.sqrt(E/DENSITY)
 
 # FOR DYNAMICAL ANALYSIS
-# VELOCITY = 10/6
 EXCESS_TIME_FACTOR = 1
 
 # GEOMETRY OF PART
@@ -47,14 +42,15 @@ COLUMN_WIDTH = 2 * DIAMETER + 2 * LIGAMENT_WIDTH
 COLUMN_LENGTH = (2 * ENDS_LENGTH + NUM_HOLES * DIAMETER
                  + (NUM_HOLES - 1) * LIGAMENT_WIDTH)
 
-
 SAVED_VARIABLES = ("E", "U")
 NUM_FIELD_OUTPUT_INTERVALS = 10
 
+# SIMULATION PARAMETERS
 VELOCITIES = np.array([0.01, 0.025, 0.05, 0.075, 0.1, 0.125, 0.15]) * THEORETICAL_C
-VELOCITIES = np.flip(VELOCITIES)
 VISCOSITIES = [0.1, 0.5, 1.0, 2.0, 5.0, 10.0]
-#VISCOSITIES = [0.1, 0.5, 1.0, 2.0, 5.0, 10.0]
+VELOCITIES = np.flip(VELOCITIES)
+
+
 base_directory = "C:/Users/f51139dn/VISCOSITY_SWEEP_UNIFORM_HYPERELASTIC_PULSE2/"
 
 
@@ -181,6 +177,7 @@ def define_node_set():
     
     return node_set, circle_numbers
 
+
 node_set, circle_numbers = define_node_set()
 
 node_labels = np.array([])
@@ -266,12 +263,7 @@ for velocity in VELOCITIES:
         
         
         #------------------INTERACTIONS-------------------
-        
-        # normal_contact = myModel.ContactProperty("Normal-contact")
-        # general_contact = myModel.ContactExp("Self-Contact", createStepName="Step-dynamic")
-        # general_contact.contactPropertyAssignments.appendInStep("Step-dynamic",
-        #                                                         ((SELF, SELF, "Normal-contact"),))
-        
+        # not necessary since uniform column
         
         
         #--------------------OUTPUTS----------------------
@@ -308,34 +300,30 @@ for velocity in VELOCITIES:
                           numCpus=NUM_CPUS, numDomains=NUM_CPUS,
                           explicitPrecision=DOUBLE_PLUS_PACK)
             job.writeInput()
-        
-        
-            # SUBMIT JOB
             job.submit()
             job.waitForCompletion()
             
-            
             odb = session.openOdb(job_name + ".odb")
-          
-          
             
+            node_labels = np.genfromtxt(node_labels_path, dtype=int, delimiter=",")
+            for node_line in node_labels:
+                node = node_line[0]
+                region_key = 'Node PART-INSTANCE.' + str(node)            
+                data_u2 = np.array(odb.steps['Step-dynamic'].historyRegions[region_key]\
+                                    .historyOutputs['U2'].data)
+                np.savetxt(output_dir + '/results_m' + str(int(MESH_SIZE*100))
+                            + "_h"+str(int(NUM_HOLES)) + "_v" + str(int(100*viscosity))
+                            + "_speed"+ str(int(100*velocity))
+                            + '_node' + str(node) + '_u2.csv',
+                            data_u2, header='time,U2', delimiter=',')
                 
-            #ANIMATION
-
+            # ANIMATION
             session.Viewport(name='Viewport: 1', origin=(0.0, 0.0), width=339.333343505859, 
                 height=208.144454956055)
             session.viewports['Viewport: 1'].makeCurrent()
             session.viewports['Viewport: 1'].maximize()
             
             executeOnCaeStartup()
-            #: Model: C:/Users/f51139dn/Job-h10-v20-hyper/Job-h10-v20-hyper.odb
-            #: Number of Assemblies:         1
-            #: Number of Assembly instances: 0
-            #: Number of Part instances:     1
-            #: Number of Meshes:             1
-            #: Number of Element Sets:       4
-            #: Number of Node Sets:          4
-            #: Number of Steps:              1
             session.viewports['Viewport: 1'].setValues(displayedObject=odb)
             session.viewports['Viewport: 1'].makeCurrent()
             session.viewports['Viewport: 1'].view.rotate(xAngle=0, yAngle=0, zAngle=-90, 
@@ -368,17 +356,6 @@ for velocity in VELOCITIES:
             session.writeImageAnimation(
                 fileName=path+'/'+job_name+'-animation', 
                 format=AVI, canvasObjects=(session.viewports['Viewport: 1'], ))
+            # END ANIMATION
             
-            
-            node_labels = np.genfromtxt(node_labels_path, dtype=int, delimiter=",")
-            for node_line in node_labels:
-                node = node_line[0]
-                region_key = 'Node PART-INSTANCE.' + str(node)            
-                data_u2 = np.array(odb.steps['Step-dynamic'].historyRegions[region_key]\
-                                    .historyOutputs['U2'].data)
-                np.savetxt(output_dir + '/results_m' + str(int(MESH_SIZE*100))
-                            + "_h"+str(int(NUM_HOLES)) + "_v" + str(int(100*viscosity))
-                            + "_speed"+ str(int(100*velocity))
-                            + '_node' + str(node) + '_u2.csv',
-                            data_u2, header='time,U2', delimiter=',')
             os.chdir(base_directory)
